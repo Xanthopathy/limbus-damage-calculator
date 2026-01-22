@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Limbus Damage Calculator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <h1>Limbus Damage Calculator</h1>
+    
+    <div class="section-header">Skill Basics</div>
+    <div class="grid-row">
+        <div class="form-group">
+            <label>Base Power</label>
+            <input type="number" id="basePower" value="4">
+        </div>
+        <div class="form-group">
+            <label>Coin Power</label>
+            <input type="number" id="coinPower" value="4">
+        </div>
+        <div class="form-group">
+            <label>Number of Coins</label>
+            <input type="number" id="coinCount" value="3" min="1" max="9">
+        </div>
+        <div class="form-group">
+            <label>Offense Level</label>
+            <input type="number" id="offenseLevel" value="60">
+        </div>
+    </div>
+
+    <div class="section-header">
+        <span>Coin Specifics</span>
+        <span style="font-size:0.6em; color:#888; font-weight:normal;">Auto-updates rows based on Coin Count</span>
+    </div>
+    <div id="coinRowsContainer">
+        </div>
+
+    <div class="section-header">Global Modifiers</div>
+    <div class="grid-row">
+        <div class="form-group">
+            <label>Attacker Dmg Modifiers (%)</label>
+            <div class="modifier-dropdown" id="atkModDropdown">
+                <div class="modifier-summary" onclick="toggleDropdown('atkModContent')">
+                    <span id="atkModTotal">Total: 0%</span>
+                    <span style="font-size:0.8em">▼</span>
+                </div>
+                <div class="modifier-content" id="atkModContent">
+                    <div id="atkModList"></div>
+                </div>
+            </div>
+            <div class="note">Sum of Passives, EGO Gifts, Power Up</div>
+        </div>
+
+        <div class="form-group">
+            <label>Target Dmg Taken Modifiers (%)</label>
+            <div class="modifier-dropdown" id="defModDropdown">
+                <div class="modifier-summary" onclick="toggleDropdown('defModContent')">
+                    <span id="defModTotal">Total: 0%</span>
+                    <span style="font-size:0.8em">▼</span>
+                </div>
+                <div class="modifier-content" id="defModContent">
+                    <div id="defModList"></div>
+                </div>
+            </div>
+            <div class="note">Fragile (+), Protection (-)</div>
+        </div>
+    </div>
+
+    <div class="section-header">Target Context</div>
+    <div class="grid-row">
+        <div class="form-group">
+            <label>Defense Level</label>
+            <input type="number" id="defenseLevel" value="60">
+        </div>
+        <div class="form-group">
+            <label>Sin Res (e.g. 2.0)</label>
+            <input type="number" id="sinRes" value="1.0" step="0.1">
+        </div>
+        <div class="form-group">
+            <label>Physical Res (e.g. 1.0)</label>
+            <input type="number" id="physRes" value="1.0" step="0.1">
+        </div>
+        <div class="form-group">
+            <label>Target State</label>
+            <select id="staggerState">
+                <option value="1">Normal (x1.0)</option>
+                <option value="2">Staggered (x2.0)</option>
+                <option value="2.5">Staggered+ (x2.5)</option>
+                <option value="3">Staggered++ (x3.0)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="section-header">Sanity (SP)</div>
+    <div class="sp-control">
+        <div style="width: 80px; text-align:center;">
+            <div style="font-size:0.8em; color:#aaa;">SP</div>
+            <div id="spValueDisplay" style="font-weight:bold; font-size:1.2em; color:var(--accent);">0</div>
+        </div>
+        <input type="range" id="spInput" min="-45" max="45" value="0">
+        <div style="width: 120px; text-align:right;">
+            <div style="font-size:0.8em; color:#aaa;">Heads Chance</div>
+            <div id="headsChanceDisplay" style="font-weight:bold; color:#fff;">50%</div>
+        </div>
+    </div>
+
+    <button class="calc-btn" onclick="calculateDamage()">Simulate Damage</button>
+
+    <div id="results">
+        <h2 style="color:var(--text-main); margin-bottom:20px;">Analysis Results</h2>
+        
+        <div class="summary-boxes">
+            <div class="summary-box">
+                <span class="summary-label">Minimum (All Tails)</span>
+                <span class="summary-val" id="resMin">0</span>
+            </div>
+            <div class="summary-box">
+                <span class="summary-label">Expected Average</span>
+                <span class="summary-val" id="resAvg" style="color:var(--accent);">0</span>
+            </div>
+            <div class="summary-box">
+                <span class="summary-label">Maximum (All Heads)</span>
+                <span class="summary-val" id="resMax">0</span>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+            <div style="flex: 1; min-width:300px;">
+                <h3 style="margin-top:0;">Probability Breakdown</h3>
+                <table class="prob-table">
+                    <thead>
+                        <tr>
+                            <th width="30%">Sequence</th>
+                            <th width="30%">Damage</th>
+                            <th width="40%">Probability</th>
+                        </tr>
+                    </thead>
+                    <tbody id="probTableBody"></tbody>
+                </table>
+            </div>
+            
+            <div style="flex: 1; min-width:300px;">
+                <h3 style="margin-top:0;">Damage Distribution</h3>
+                <div class="graph-container">
+                    <canvas id="damageChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="sandbox-container">
+            <div class="sandbox-header-row">
+                <h3 style="margin:0;">Calculation Sandbox</h3>
+                <span style="font-size:0.85em; color:#888;">Interactive: Click Coin to Toggle H/T</span>
+            </div>
+
+            <div class="hidden-calcs">
+                <div>Level Diff Mod: <b id="sb-lvlmod">0%</b></div>
+                <div>Global Mod (Atk+Def): <b id="sb-globalmod">0%</b></div>
+                <div>Resistances Multiplier: <b id="sb-resmod">x1.0</b></div>
+                <div>Total Multiplier: <b id="sb-totalmult">x1.0</b></div>
+            </div>
+
+            <div id="sandbox-coins">
+                </div>
+
+            <div class="sb-total">
+				<div>Raw Coin Damage: <span id="sb-raw-power">0</span></div>
+				<div>Sandbox Total Damage: <span id="sb-final-dmg">0</span></div>
+			</div>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,14 @@
+.
+|-- README.md
+|-- docs
+|   `-- index.html
+|-- preview.png
+|-- scripts
+|   `-- build.py
+|-- src
+|   |-- index.html
+|   |-- script.js
+|   `-- style.css
+`-- tree.txt
+
+3 directories, 8 files
