@@ -330,9 +330,10 @@ input[type=number] {
 }
 
 .hidden-calcs {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 10px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 15px;
     background: #222;
     padding: 10px;
     border-radius: 6px;

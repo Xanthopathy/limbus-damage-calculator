@@ -92,27 +92,8 @@ function toggleDropdown(contentId) {
 
 /* --- 2. CALCULATION LOGIC --- */
 
-let chartInstance = null;
-let sandboxState = []; // Stores true (Head) / false (Tail) for sandbox
-
-function calculateDamage() {
-  // Core Stats
-  const baseP = parseFloat(document.getElementById("basePower").value) || 0;
-  const coinP = parseFloat(document.getElementById("coinPower").value) || 0;
-  const coins = parseInt(document.getElementById("coinCount").value) || 1;
-
-  // Level Calc
-  const offLvl = parseFloat(document.getElementById("offenseLevel").value) || 0;
-  const defLvl = parseFloat(document.getElementById("defenseLevel").value) || 0;
-  const levelDiff = offLvl - defLvl;
-  const levelMod = levelDiff / (Math.abs(levelDiff) + 25);
-
-  // Global Modifiers
-  const sinRes = parseFloat(document.getElementById("sinRes").value) || 1.0;
-  const physRes = parseFloat(document.getElementById("physRes").value) || 1.0;
-  const stagger =
-    parseFloat(document.getElementById("staggerState").value) || 1.0;
-
+/** Gathers all user-configurable values from the DOM. */
+function getInputs() {
   const getSum = (id) => {
     let s = 0;
     document
@@ -120,8 +101,6 @@ function calculateDamage() {
       .forEach((i) => (s += parseFloat(i.value) || 0));
     return s;
   };
-  const totalPctMod = (getSum("atkModList") + getSum("defModList")) / 100.0;
-  const globalDmgMult = 1.0 + levelMod + totalPctMod;
 
   const coinSpecifics = [];
   document.querySelectorAll("#coinRowsContainer .coin-row").forEach((row) => {
@@ -132,65 +111,131 @@ function calculateDamage() {
     });
   });
 
+  return {
+    baseP: parseFloat(document.getElementById("basePower").value) || 0,
+    coinP: parseFloat(document.getElementById("coinPower").value) || 0,
+    coins: parseInt(document.getElementById("coinCount").value) || 1,
+    offLvl: parseFloat(document.getElementById("offenseLevel").value) || 0,
+    defLvl: parseFloat(document.getElementById("defenseLevel").value) || 0,
+    sinRes: parseFloat(document.getElementById("sinRes").value) || 1.0,
+    physRes: parseFloat(document.getElementById("physRes").value) || 1.0,
+    stagger: parseFloat(document.getElementById("staggerState").value) || 1.0,
+    atkMods: getSum("atkModList") / 100.0,
+    defMods: getSum("defModList") / 100.0,
+    coinSpecifics: coinSpecifics,
+  };
+}
+
+/**
+ * Calculates the static and dynamic multipliers based on the README formula.
+ * @param {object} inputs - The collected inputs from getInputs().
+ * @returns {object} An object containing the calculated multipliers.
+ */
+function calculateMultipliers(inputs) {
+  // Level Modifier
+  const levelDiff = inputs.offLvl - inputs.defLvl;
+  const levelMod = levelDiff === 0 ? 0 : levelDiff / (Math.abs(levelDiff) + 25);
+
+  // Static Multiplier Pool (per README)
+  const staticMult = 1 + (inputs.sinRes - 1) + (inputs.physRes - 1) + levelMod;
+
+  // Dynamic Multiplier Pool (base)
+  const dynamicMult = 1 + inputs.atkMods + inputs.defMods;
+
+  return {
+    static: Math.max(0, staticMult),
+    baseDynamic: dynamicMult,
+    levelMod: levelMod,
+  };
+}
+
+/**
+ * Calculates the damage for a single hit based on the README formula.
+ * Damage = floor(Power * StaticMultiplier * DynamicMultiplier * Stagger) + FlatDamage
+ */
+function calculateHit(power, staticMult, dynamicMult, stagger, flatDmg) {
+  const finalDamage =
+    Math.floor(power * staticMult * dynamicMult * stagger) + flatDmg;
+  return Math.max(1, finalDamage);
+}
+
+let chartInstance = null;
+let sandboxState = []; // Stores true (Head) / false (Tail) for sandbox
+
+function calculateDamage() {
+  const inputs = getInputs();
+  const multipliers = calculateMultipliers(inputs);
+
   const headsChance = updateSp();
-  const totalPerms = Math.pow(2, coins);
+  const totalPerms = Math.pow(2, inputs.coins);
   let results = [];
   let minDmg = Infinity,
     maxDmg = -Infinity,
     avgDmg = 0;
 
   for (let i = 0; i < totalPerms; i++) {
+    let totalDamage = 0;
     let currentProb = 1.0;
-    let currentTotalDmg = 0;
-    let currentTotalPower = 0;
     let currentCoinBonus = 0;
     let seqStr = [];
     let accumulatedBonusPower = 0;
 
-    for (let c = 0; c < coins; c++) {
+    for (let c = 0; c < inputs.coins; c++) {
       const isHead = (i >> c) & 1;
       currentProb *= isHead ? headsChance : 1.0 - headsChance;
       seqStr.push(isHead ? "H" : "T");
 
-      if (isHead) currentCoinBonus += coinP;
+      if (isHead) currentCoinBonus += inputs.coinP;
 
-      const spec = coinSpecifics[c] || { bonusPower: 0, flatDmg: 0, pctDmg: 0 };
-
-      // Accumulate bonus power
+      const spec = inputs.coinSpecifics[c];
       accumulatedBonusPower += spec.bonusPower;
 
-      let hitPower = baseP + currentCoinBonus + accumulatedBonusPower;
+      let hitPower = inputs.baseP + currentCoinBonus + accumulatedBonusPower;
       if (hitPower < 0) hitPower = 0;
 
-      currentTotalPower += hitPower;
+      // Per-coin dynamic multiplier
+      const dynamicMultiplier = Math.max(
+        0,
+        multipliers.baseDynamic + spec.pctDmg,
+      );
 
-      let finalMod = globalDmgMult + spec.pctDmg;
-      // Double check negative modifiers don't invert damage, though rare in Limbus
-      if (finalMod < 0) finalMod = 0;
+      const hitDmg = calculateHit(
+        hitPower,
+        multipliers.static,
+        dynamicMultiplier,
+        inputs.stagger,
+        spec.flatDmg,
+      );
 
-      let hitDmg =
-        hitPower * finalMod * sinRes * physRes * stagger + spec.flatDmg;
-      hitDmg = Math.max(1, Math.floor(hitDmg));
-      currentTotalDmg += hitDmg;
+      totalDamage += hitDmg;
     }
 
     results.push({
       seq: seqStr.join(" "),
-      dmg: currentTotalDmg,
+      dmg: totalDamage,
       prob: currentProb,
     });
-    if (currentTotalDmg < minDmg) minDmg = currentTotalDmg;
-    if (currentTotalDmg > maxDmg) maxDmg = currentTotalDmg;
-    avgDmg += currentTotalDmg * currentProb;
+    if (totalDamage < minDmg) minDmg = totalDamage;
+    if (totalDamage > maxDmg) maxDmg = totalDamage;
+    avgDmg += totalDamage * currentProb;
   }
 
-  // Update Summary Boxes
+  updateResultsUI({ minDmg, maxDmg, avgDmg, results });
+  updateGraphUI(results, maxDmg);
+
+  // Initialize Sandbox State if length changed
+  if (sandboxState.length !== inputs.coins) {
+    sandboxState = new Array(inputs.coins).fill(true); // Default all heads
+  }
+  updateSandboxUI(inputs, multipliers);
+}
+
+function updateResultsUI({ minDmg, maxDmg, avgDmg, results }) {
   document.getElementById("resMin").textContent = minDmg;
   document.getElementById("resMax").textContent = maxDmg;
   document.getElementById("resAvg").textContent = avgDmg.toFixed(1);
   document.getElementById("results").style.display = "block";
 
-  // Update Table
   const tbody = document.getElementById("probTableBody");
   tbody.innerHTML = "";
   results.sort((a, b) => b.prob - a.prob);
@@ -198,14 +243,15 @@ function calculateDamage() {
   results.forEach((r) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-            <td style="font-family:monospace; color:#aaa;">${r.seq}</td>
-            <td style="color:#ffcece; font-weight:bold;">${r.dmg}</td>
-            <td>${(r.prob * 100).toFixed(2)}%</td>
-        `;
+        <td style="font-family:monospace; color:#aaa;">${r.seq}</td>
+        <td style="color:#ffcece; font-weight:bold;">${r.dmg}</td>
+        <td>${(r.prob * 100).toFixed(2)}%</td>
+    `;
     tbody.appendChild(tr);
   });
+}
 
-  // Graph
+function updateGraphUI(results, maxDmg) {
   let graphData = {};
   results.forEach((r) => {
     graphData[r.dmg] = (graphData[r.dmg] || 0) + r.prob;
@@ -216,98 +262,112 @@ function calculateDamage() {
 
   const ctx = document.getElementById("damageChart").getContext("2d");
   if (chartInstance) chartInstance.destroy();
+
   chartInstance = new Chart(ctx, {
     type: "bar",
     data: {
       labels: sortedGraph.map((i) => i.dmg),
       datasets: [
         {
+          label: "Probability",
           data: sortedGraph.map((i) => (i.prob * 100).toFixed(2)),
           backgroundColor: sortedGraph.map((i) =>
             i.dmg == maxDmg ? "#b73e3e" : "#666",
           ),
+          barPercentage: 0.8,
+          categoryPercentage: 0.8,
         },
       ],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true }, x: { ticks: { color: "#ccc" } } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.raw}% chance`,
+          },
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: "Probability (%)" },
+          ticks: { color: "#ccc" },
+          grid: { color: "#444" },
+        },
+        x: {
+          title: { display: true, text: "Total Damage" },
+          ticks: { color: "#ccc" },
+          grid: { color: "transparent" },
+        },
+      },
     },
   });
-
-  // Initialize Sandbox State if length changed
-  if (sandboxState.length !== coins) {
-    sandboxState = new Array(coins).fill(true); // Default all heads
-  }
-  updateSandboxUI(
-    baseP,
-    coinP,
-    coins,
-    levelMod,
-    totalPctMod,
-    coinSpecifics,
-    sinRes,
-    physRes,
-    stagger,
-  );
 }
 
 /* --- 3. SANDBOX LOGIC --- */
 
-function updateSandboxUI(
-  baseP,
-  coinP,
-  coins,
-  levelMod,
-  totalPctMod,
-  coinSpecifics,
-  sinRes,
-  physRes,
-  stagger,
-) {
+function updateSandboxUI(inputs, multipliers) {
   // Update Hidden Calcs
-  document.getElementById("sb-lvlmod").textContent =
-    (levelMod * 100).toFixed(1) + "%";
+  const lvlPct = (multipliers.levelMod * 100).toFixed(1);
+  const lvlMult = (1 + multipliers.levelMod).toFixed(3);
+  document.getElementById("sb-lvlmod").textContent = `${lvlPct}% (x${lvlMult})`;
+
+  const globalPct = ((multipliers.baseDynamic - 1) * 100).toFixed(1);
+  const globalMult = multipliers.baseDynamic.toFixed(2);
   document.getElementById("sb-globalmod").textContent =
-    (totalPctMod * 100).toFixed(1) + "%";
+    `${globalPct}% (x${globalMult})`;
 
-  const resMult = sinRes * physRes * stagger;
-  document.getElementById("sb-resmod").textContent = "x" + resMult.toFixed(2);
+  // Resistance Multiplier: Combine Static Resistance parts (Sin/Phys) with Stagger
+  // Static Res Part = 1 + (Sin - 1) + (Phys - 1)
+  const staticResPart = 1 + (inputs.sinRes - 1) + (inputs.physRes - 1);
+  const totalResMult = staticResPart * inputs.stagger;
+  document.getElementById("sb-resmod").textContent =
+    "x" + totalResMult.toFixed(2);
 
-  const totalMultBase = 1.0 + levelMod + totalPctMod;
+  const baseTotalMultiplier =
+    multipliers.static * multipliers.baseDynamic * inputs.stagger;
   document.getElementById("sb-totalmult").textContent =
-    "x" + (totalMultBase * resMult).toFixed(2);
+    "x" + baseTotalMultiplier.toFixed(2);
 
   // Build Rows
   const container = document.getElementById("sandbox-coins");
   container.innerHTML = "";
-  let currentTotalDmg = 0;
-  let currentTotalPower = 0;
+  let totalDamage = 0;
+  let totalPower = 0;
   let currentCoinBonus = 0;
   let accumulatedBonusPower = 0;
 
-  for (let c = 0; c < coins; c++) {
+  for (let c = 0; c < inputs.coins; c++) {
     const isHead = sandboxState[c];
-    if (isHead) currentCoinBonus += coinP;
+    if (isHead) currentCoinBonus += inputs.coinP;
 
-    const spec = coinSpecifics[c] || { bonusPower: 0, flatDmg: 0, pctDmg: 0 };
+    const spec = inputs.coinSpecifics[c];
     accumulatedBonusPower += spec.bonusPower;
 
-    let hitPower = baseP + currentCoinBonus + accumulatedBonusPower;
+    let hitPower = inputs.baseP + currentCoinBonus + accumulatedBonusPower;
     if (hitPower < 0) hitPower = 0;
+    totalPower += hitPower;
 
-    currentTotalPower += hitPower;
+    const dynamicMultiplier = Math.max(
+      0,
+      multipliers.baseDynamic + spec.pctDmg,
+    );
 
-    let finalMod = totalMultBase + spec.pctDmg;
-    if (finalMod < 0) finalMod = 0;
-
-    let hitDmg = hitPower * finalMod * resMult + spec.flatDmg;
-    hitDmg = Math.max(1, Math.floor(hitDmg));
-    currentTotalDmg += hitDmg;
+    const hitDmg = calculateHit(
+      hitPower,
+      multipliers.static,
+      dynamicMultiplier,
+      inputs.stagger,
+      spec.flatDmg,
+    );
+    totalDamage += hitDmg;
 
     // DOM Construction
+    const finalMultiplierForDisplay =
+      multipliers.static * dynamicMultiplier * inputs.stagger;
     const div = document.createElement("div");
     div.className = "sandbox-coin-row";
     div.innerHTML = `
@@ -320,21 +380,19 @@ function updateSandboxUI(
                 <div class="sb-stat">Dmg: <span>${hitDmg}</span></div>
             </div>
             <div style="font-size:0.8em; color:#666;">
-                Base: ${baseP + currentCoinBonus + accumulatedBonusPower}<br>
-                Mod: ${(finalMod * 100).toFixed(0)}%
+                Base: ${inputs.baseP + currentCoinBonus + accumulatedBonusPower}<br>
+                Mult: x${finalMultiplierForDisplay.toFixed(2)}
             </div>
         `;
     container.appendChild(div);
   }
 
-  document.getElementById("sb-raw-power").textContent = currentTotalPower;
-  document.getElementById("sb-final-dmg").textContent = currentTotalDmg;
+  document.getElementById("sb-raw-power").textContent = totalPower;
+  document.getElementById("sb-final-dmg").textContent = totalDamage;
 }
 
 function toggleSandboxCoin(index) {
   sandboxState[index] = !sandboxState[index];
-  // Re-run full calculation to get latest modifiers (inefficient but safe) or pass stored?
-  // Better: trigger Main Calc, but we need to preserve state.
   // Since CalculateDamage calls updateSandboxUI, we just call calculateDamage().
   calculateDamage();
 }
