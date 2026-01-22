@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Limbus Damage Calculator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #121214;
+            --panel-bg: #1e1e20;
+            --input-bg: #2a2a2d;
+            --accent: #b73e3e;
+            --accent-hover: #d64d4d;
+            --heads: #eebb22;
+            --tails: #667788;
+            --text-main: #e0e0e0;
+            --text-muted: #888;
+            --border: #444;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+        .container {
+            max-width: 950px;
+            width: 100%;
+            background-color: var(--panel-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 30px;
+            font-size: 1.8em;
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 15px;
+        }
+
+        .section-header {
+            font-size: 1.2em;
+            color: #ff8e8e;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--accent);
+            padding-left: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .grid-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        label {
+            font-size: 0.85em;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        input[type="number"], select {
+            background-color: var(--input-bg);
+            border: 1px solid var(--border);
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.2s;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        input[type="number"]:focus, select:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        /* Specific Coin Rows */
+        #coinRowsContainer {
+            background-color: #252528;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+
+        .coin-row {
+            display: grid;
+            grid-template-columns: 80px 1fr 1fr 1fr;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+        }
+        .coin-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .coin-label { font-weight: bold; color: #ccc; }
+
+        /* Custom Dropdown for Modifiers */
+        .modifier-dropdown {
+            position: relative;
+            width: 100%;
+        }
+        
+        .modifier-summary {
+            background-color: var(--input-bg);
+            border: 1px solid var(--border);
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        /* When active, flatten the bottom corners to merge with content */
+        .modifier-summary.active {
+            border-color: var(--accent);
+            border-radius: 6px 6px 0 0;
+            background-color: #252528;
+        }
+
+        .modifier-content {
+            display: none; /* Hidden by default */
+            background-color: #252528;
+            border: 1px solid var(--accent); /* Matches active header */
+            border-top: none; /* Merges with summary */
+            border-radius: 0 0 6px 6px;
+            padding: 15px;
+        }
+
+        .modifier-content.active { 
+            display: block; 
+        }
+
+        .mod-item {
+            display: grid;
+            grid-template-columns: 1fr 60px 25px;
+            gap: 5px;
+            margin-bottom: 5px;
+        }
+        
+        .mod-item input[type="text"] {
+            background-color: #1a1a1d;
+            border: 1px solid #444;
+            color: #ddd;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        
+        .mod-item input[type="number"] {
+            padding: 5px;
+        }
+
+        .btn-mini {
+            background: #444;
+            border: none;
+            color: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-mini:hover { background: #666; }
+        .btn-remove { background: #5a2e2e; }
+        .btn-remove:hover { background: #7a3e3e; }
+
+        /* Sanity Slider */
+        .sp-control {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: #252528;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        input[type="range"] {
+            flex-grow: 1;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        /* Main Button */
+        .calc-btn {
+            width: 100%;
+            margin-top: 30px;
+            padding: 18px;
+            background: linear-gradient(135deg, #b73e3e 0%, #8a2b2b 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.3em;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: transform 0.1s, box-shadow 0.2s;
+        }
+        .calc-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(183, 62, 62, 0.4);
+        }
+        .calc-btn:active { transform: translateY(0); }
+
+        /* Results */
+        #results {
+            display: none;
+            margin-top: 40px;
+            border-top: 1px solid #333;
+            padding-top: 20px;
+        }
+
+        .summary-boxes {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .summary-box {
+            background: #252528;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+
+        .summary-label { font-size: 0.9em; color: #aaa; display: block; margin-bottom: 5px; }
+        .summary-val { font-size: 1.5em; font-weight: bold; color: #ffcece; }
+
+        table.prob-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95em;
+        }
+        
+        table.prob-table th {
+            text-align: left;
+            padding: 10px;
+            background-color: #333;
+            color: #ddd;
+        }
+        
+        table.prob-table td {
+            padding: 10px;
+            border-bottom: 1px solid #333;
+        }
+
+        .graph-container {
+            margin-top: 30px;
+            background: #252528;
+            padding: 15px;
+            border-radius: 8px;
+            height: 300px;
+        }
+
+        /* Utility */
+        .note { font-size: 0.75em; color: #666; margin-top: 4px; }
+        
+        /* Remove number spinner arrows for cleaner look, we use scroll */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] { -moz-appearance: textfield; }
+        
+        #probTableBody {
+            display: block;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .prob-table thead, .prob-table tbody tr {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+        
+        .dummy-row input {
+            border-style: dashed;
+            opacity: 0.6;
+        }
+        .dummy-row input:focus {
+            opacity: 1;
+            border-style: solid;
+        }
+
+        /* SANDBOX STYLES */
+        .sandbox-container {
+            margin-top: 40px;
+            background: #18181a;
+            border: 1px solid #444;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .sandbox-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+        }
+
+        .hidden-calcs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            background: #222;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 0.85em;
+            color: #aaa;
+        }
+        .hidden-calcs b { color: #ddd; }
+
+        .sandbox-coin-row {
+            display: grid;
+            grid-template-columns: 50px 80px 1fr 1fr;
+            gap: 10px;
+            align-items: center;
+            padding: 12px;
+            background: #252528;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border-left: 3px solid #555;
+        }
+
+        .toggle-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid #555;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1em;
+            transition: all 0.2s;
+        }
+        .toggle-btn.heads { background-color: var(--heads); color: #111; border-color: #d4a000; }
+        .toggle-btn.tails { background-color: var(--tails); color: #eee; border-color: #556677; }
+
+        .sb-stat { font-size: 0.9em; color: #999; }
+        .sb-stat span { color: #eee; font-weight: bold; margin-left: 5px; }
+
+        .sb-total {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			font-size: 1.2em;
+			font-weight: bold;
+			margin-top: 15px;
+			padding-top: 15px;
+			border-top: 1px dashed #444;
+		}
+		#sb-raw-power { color: #aaa; }
+		#sb-final-dmg { color: var(--accent); font-size: 1.2em; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Limbus Damage Calculator</h1>
+    
+    <div class="section-header">Skill Basics</div>
+    <div class="grid-row">
+        <div class="form-group">
+            <label>Base Power</label>
+            <input type="number" id="basePower" value="4">
+        </div>
+        <div class="form-group">
+            <label>Coin Power</label>
+            <input type="number" id="coinPower" value="4">
+        </div>
+        <div class="form-group">
+            <label>Number of Coins</label>
+            <input type="number" id="coinCount" value="3" min="1" max="9">
+        </div>
+        <div class="form-group">
+            <label>Offense Level</label>
+            <input type="number" id="offenseLevel" value="60">
+        </div>
+    </div>
+
+    <div class="section-header">
+        <span>Coin Specifics</span>
+        <span style="font-size:0.6em; color:#888; font-weight:normal;">Auto-updates rows based on Coin Count</span>
+    </div>
+    <div id="coinRowsContainer">
+        </div>
+
+    <div class="section-header">Global Modifiers</div>
+    <div class="grid-row">
+        <div class="form-group">
+            <label>Attacker Dmg Modifiers (%)</label>
+            <div class="modifier-dropdown" id="atkModDropdown">
+                <div class="modifier-summary" onclick="toggleDropdown('atkModContent')">
+                    <span id="atkModTotal">Total: 0%</span>
+                    <span style="font-size:0.8em">▼</span>
+                </div>
+                <div class="modifier-content" id="atkModContent">
+                    <div id="atkModList"></div>
+                </div>
+            </div>
+            <div class="note">Sum of Passives, EGO Gifts, Power Up</div>
+        </div>
+
+        <div class="form-group">
+            <label>Target Dmg Taken Modifiers (%)</label>
+            <div class="modifier-dropdown" id="defModDropdown">
+                <div class="modifier-summary" onclick="toggleDropdown('defModContent')">
+                    <span id="defModTotal">Total: 0%</span>
+                    <span style="font-size:0.8em">▼</span>
+                </div>
+                <div class="modifier-content" id="defModContent">
+                    <div id="defModList"></div>
+                </div>
+            </div>
+            <div class="note">Fragile (+), Protection (-)</div>
+        </div>
+    </div>
+
+    <div class="section-header">Target Context</div>
+    <div class="grid-row">
+        <div class="form-group">
+            <label>Defense Level</label>
+            <input type="number" id="defenseLevel" value="60">
+        </div>
+        <div class="form-group">
+            <label>Sin Res (e.g. 2.0)</label>
+            <input type="number" id="sinRes" value="1.0" step="0.1">
+        </div>
+        <div class="form-group">
+            <label>Physical Res (e.g. 1.0)</label>
+            <input type="number" id="physRes" value="1.0" step="0.1">
+        </div>
+        <div class="form-group">
+            <label>Target State</label>
+            <select id="staggerState">
+                <option value="1">Normal (x1.0)</option>
+                <option value="2">Staggered (x2.0)</option>
+                <option value="2.5">Staggered+ (x2.5)</option>
+                <option value="3">Staggered++ (x3.0)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="section-header">Sanity (SP)</div>
+    <div class="sp-control">
+        <div style="width: 80px; text-align:center;">
+            <div style="font-size:0.8em; color:#aaa;">SP</div>
+            <div id="spValueDisplay" style="font-weight:bold; font-size:1.2em; color:var(--accent);">0</div>
+        </div>
+        <input type="range" id="spInput" min="-45" max="45" value="0">
+        <div style="width: 120px; text-align:right;">
+            <div style="font-size:0.8em; color:#aaa;">Heads Chance</div>
+            <div id="headsChanceDisplay" style="font-weight:bold; color:#fff;">50%</div>
+        </div>
+    </div>
+
+    <button class="calc-btn" onclick="calculateDamage()">Simulate Damage</button>
+
+    <div id="results">
+        <h2 style="color:var(--text-main); margin-bottom:20px;">Analysis Results</h2>
+        
+        <div class="summary-boxes">
+            <div class="summary-box">
+                <span class="summary-label">Minimum (All Tails)</span>
+                <span class="summary-val" id="resMin">0</span>
+            </div>
+            <div class="summary-box">
+                <span class="summary-label">Expected Average</span>
+                <span class="summary-val" id="resAvg" style="color:var(--accent);">0</span>
+            </div>
+            <div class="summary-box">
+                <span class="summary-label">Maximum (All Heads)</span>
+                <span class="summary-val" id="resMax">0</span>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+            <div style="flex: 1; min-width:300px;">
+                <h3 style="margin-top:0;">Probability Breakdown</h3>
+                <table class="prob-table">
+                    <thead>
+                        <tr>
+                            <th width="30%">Sequence</th>
+                            <th width="30%">Damage</th>
+                            <th width="40%">Probability</th>
+                        </tr>
+                    </thead>
+                    <tbody id="probTableBody"></tbody>
+                </table>
+            </div>
+            
+            <div style="flex: 1; min-width:300px;">
+                <h3 style="margin-top:0;">Damage Distribution</h3>
+                <div class="graph-container">
+                    <canvas id="damageChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="sandbox-container">
+            <div class="sandbox-header-row">
+                <h3 style="margin:0;">Calculation Sandbox</h3>
+                <span style="font-size:0.85em; color:#888;">Interactive: Click Coin to Toggle H/T</span>
+            </div>
+
+            <div class="hidden-calcs">
+                <div>Level Diff Mod: <b id="sb-lvlmod">0%</b></div>
+                <div>Global Mod (Atk+Def): <b id="sb-globalmod">0%</b></div>
+                <div>Resistances Multiplier: <b id="sb-resmod">x1.0</b></div>
+                <div>Total Multiplier: <b id="sb-totalmult">x1.0</b></div>
+            </div>
+
+            <div id="sandbox-coins">
+                </div>
+
+            <div class="sb-total">
+				<div>Raw Coin Damage: <span id="sb-raw-power">0</span></div>
+				<div>Sandbox Total Damage: <span id="sb-final-dmg">0</span></div>
+			</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* --- 1. INITIALIZATION & UI HANDLERS --- */
+
+    document.addEventListener('wheel', function(e) {
+        if (e.target.type === 'number') {
+            e.preventDefault();
+            let step = (e.target.id === 'sinRes' || e.target.id === 'physRes') ? 0.1 : 1;
+            
+            if (e.deltaY < 0) {
+                e.target.value = (parseFloat(e.target.value) + step).toFixed(step === 1 ? 0 : 1);
+            } else {
+                e.target.value = (parseFloat(e.target.value) - step).toFixed(step === 1 ? 0 : 1);
+            }
+            e.target.dispatchEvent(new Event('input'));
+        }
+    }, { passive: false });
+
+    // Dynamic Coin Rows Generation
+    const coinCountInput = document.getElementById('coinCount');
+    const coinRowsContainer = document.getElementById('coinRowsContainer');
+
+    function updateCoinRows() {
+        const count = parseInt(coinCountInput.value) || 1;
+        const currentRows = coinRowsContainer.querySelectorAll('.coin-row');
+        const currentCount = currentRows.length;
+
+        if (count > currentCount) {
+            for (let i = currentCount; i < count; i++) {
+                const row = document.createElement('div');
+                row.className = 'coin-row';
+                row.id = `coin-row-${i}`;
+                row.innerHTML = `
+                    <div class="coin-label">Coin ${i+1}</div>
+                    <div>
+                        <input type="number" class="c-power" placeholder="Bonus Coin Power" value="0">
+                        <div class="note">Bonus Coin Power</div>
+                    </div>
+                    <div>
+                        <input type="number" class="c-flat" placeholder="Bonus Flat Dmg" value="0">
+                        <div class="note">Bonus Flat Dmg</div>
+                    </div>
+                    <div>
+                        <input type="number" class="c-pct" placeholder="Bonus % Dmg" value="0">
+                        <div class="note">Bonus % Dmg</div>
+                    </div>
+                `;
+                coinRowsContainer.appendChild(row);
+            }
+        } else if (count < currentCount) {
+            for (let i = currentCount - 1; i >= count; i--) {
+                coinRowsContainer.removeChild(currentRows[i]);
+            }
+        }
+    }
+
+    coinCountInput.addEventListener('input', updateCoinRows);
+    updateCoinRows(); // Init
+
+    // SP Slider Logic
+    const spInput = document.getElementById('spInput');
+    const spDisplay = document.getElementById('spValueDisplay');
+    const headsDisplay = document.getElementById('headsChanceDisplay');
+
+    function updateSp() {
+        const val = parseInt(spInput.value);
+        spDisplay.textContent = val;
+        let chance = 50 + val;
+        if (chance > 95) chance = 95;
+        if (chance < 5) chance = 5;
+        headsDisplay.textContent = chance + "%";
+        return chance / 100;
+    }
+    spInput.addEventListener('input', updateSp);
+
+    function toggleDropdown(contentId) {
+        const content = document.getElementById(contentId);
+        const summary = content.previousElementSibling; 
+        const arrow = summary.querySelector('span:last-child');
+        
+        const isActive = content.classList.toggle('active');
+        summary.classList.toggle('active');
+        arrow.textContent = isActive ? '▲' : '▼';
+    }
+
+
+    /* --- 2. CALCULATION LOGIC --- */
+    
+    let chartInstance = null;
+    let sandboxState = []; // Stores true (Head) / false (Tail) for sandbox
+
+    function calculateDamage() {
+        // Core Stats
+        const baseP = parseFloat(document.getElementById('basePower').value) || 0;
+        const coinP = parseFloat(document.getElementById('coinPower').value) || 0;
+        const coins = parseInt(document.getElementById('coinCount').value) || 1;
+        
+        // Level Calc
+        const offLvl = parseFloat(document.getElementById('offenseLevel').value) || 0;
+        const defLvl = parseFloat(document.getElementById('defenseLevel').value) || 0;
+        const levelDiff = offLvl - defLvl;
+        const levelMod = levelDiff / (Math.abs(levelDiff) + 25); 
+
+        // Global Modifiers
+        const sinRes = parseFloat(document.getElementById('sinRes').value) || 1.0;
+        const physRes = parseFloat(document.getElementById('physRes').value) || 1.0;
+        const stagger = parseFloat(document.getElementById('staggerState').value) || 1.0;
+
+        const getSum = (id) => {
+            let s = 0;
+            document.querySelectorAll(`#${id} input[type="number"]`).forEach(i => s += parseFloat(i.value)||0);
+            return s;
+        }
+        const totalPctMod = (getSum('atkModList') + getSum('defModList')) / 100.0;
+        const globalDmgMult = 1.0 + levelMod + totalPctMod;
+
+        const coinSpecifics = [];
+        document.querySelectorAll('#coinRowsContainer .coin-row').forEach(row => {
+            coinSpecifics.push({
+                bonusPower: parseFloat(row.querySelector('.c-power').value) || 0,
+                flatDmg: parseFloat(row.querySelector('.c-flat').value) || 0,
+                pctDmg: (parseFloat(row.querySelector('.c-pct').value) || 0) / 100.0
+            });
+        });
+
+        const headsChance = updateSp(); 
+        const totalPerms = Math.pow(2, coins);
+        let results = []; 
+        let minDmg = Infinity, maxDmg = -Infinity, avgDmg = 0;
+
+        for (let i = 0; i < totalPerms; i++) {
+            let currentProb = 1.0;
+            let currentTotalDmg = 0;
+			let currentTotalPower = 0;
+            let currentCoinBonus = 0; 
+            let seqStr = [];
+            let accumulatedBonusPower = 0;
+
+            for (let c = 0; c < coins; c++) {
+                const isHead = (i >> c) & 1;
+                currentProb *= (isHead ? headsChance : (1.0 - headsChance));
+                seqStr.push(isHead ? "H" : "T");
+
+                if (isHead) currentCoinBonus += coinP; 
+
+                const spec = coinSpecifics[c] || { bonusPower: 0, flatDmg: 0, pctDmg: 0 };
+                
+                // Accumulate bonus power
+                accumulatedBonusPower += spec.bonusPower;
+
+                let hitPower = baseP + currentCoinBonus + accumulatedBonusPower;
+                if (hitPower < 0) hitPower = 0; 
+				
+				currentTotalPower += hitPower;
+
+                let finalMod = globalDmgMult + spec.pctDmg;
+                // Double check negative modifiers don't invert damage, though rare in Limbus
+                if (finalMod < 0) finalMod = 0; 
+
+                let hitDmg = (hitPower * finalMod * sinRes * physRes * stagger) + spec.flatDmg;
+                hitDmg = Math.max(1, Math.floor(hitDmg));
+                currentTotalDmg += hitDmg;
+            }
+
+            results.push({ seq: seqStr.join(" "), dmg: currentTotalDmg, prob: currentProb });
+            if (currentTotalDmg < minDmg) minDmg = currentTotalDmg;
+            if (currentTotalDmg > maxDmg) maxDmg = currentTotalDmg;
+            avgDmg += (currentTotalDmg * currentProb);
+        }
+
+        // Update Summary Boxes
+        document.getElementById('resMin').textContent = minDmg;
+        document.getElementById('resMax').textContent = maxDmg;
+        document.getElementById('resAvg').textContent = avgDmg.toFixed(1);
+        document.getElementById('results').style.display = 'block';
+
+        // Update Table
+        const tbody = document.getElementById('probTableBody');
+        tbody.innerHTML = '';
+        results.sort((a, b) => b.prob - a.prob); 
+        
+        results.forEach(r => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-family:monospace; color:#aaa;">${r.seq}</td>
+                <td style="color:#ffcece; font-weight:bold;">${r.dmg}</td>
+                <td>${(r.prob * 100).toFixed(2)}%</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Graph
+        let graphData = {};
+        results.forEach(r => {
+            graphData[r.dmg] = (graphData[r.dmg] || 0) + r.prob;
+        });
+        let sortedGraph = Object.keys(graphData).map(d => ({ dmg: parseInt(d), prob: graphData[d] })).sort((a, b) => a.dmg - b.dmg);
+
+        const ctx = document.getElementById('damageChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: sortedGraph.map(i => i.dmg),
+                datasets: [{
+                    data: sortedGraph.map(i => (i.prob * 100).toFixed(2)),
+                    backgroundColor: sortedGraph.map(i => i.dmg == maxDmg ? '#b73e3e' : '#666')
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true }, x: { ticks: { color: '#ccc' } } }
+            }
+        });
+
+        // Initialize Sandbox State if length changed
+        if (sandboxState.length !== coins) {
+            sandboxState = new Array(coins).fill(true); // Default all heads
+        }
+        updateSandboxUI(baseP, coinP, coins, levelMod, totalPctMod, coinSpecifics, sinRes, physRes, stagger);
+    }
+
+    /* --- 3. SANDBOX LOGIC --- */
+
+    function updateSandboxUI(baseP, coinP, coins, levelMod, totalPctMod, coinSpecifics, sinRes, physRes, stagger) {
+        // Update Hidden Calcs
+        document.getElementById('sb-lvlmod').textContent = (levelMod * 100).toFixed(1) + "%";
+        document.getElementById('sb-globalmod').textContent = (totalPctMod * 100).toFixed(1) + "%";
+        
+        const resMult = sinRes * physRes * stagger;
+        document.getElementById('sb-resmod').textContent = "x" + resMult.toFixed(2);
+        
+        const totalMultBase = (1.0 + levelMod + totalPctMod);
+        document.getElementById('sb-totalmult').textContent = "x" + (totalMultBase * resMult).toFixed(2);
+
+        // Build Rows
+        const container = document.getElementById('sandbox-coins');
+        container.innerHTML = '';
+        let currentTotalDmg = 0;
+		let currentTotalPower = 0;
+        let currentCoinBonus = 0;
+        let accumulatedBonusPower = 0;
+
+        for (let c = 0; c < coins; c++) {
+            const isHead = sandboxState[c];
+            if (isHead) currentCoinBonus += coinP;
+
+            const spec = coinSpecifics[c] || { bonusPower: 0, flatDmg: 0, pctDmg: 0 };
+            accumulatedBonusPower += spec.bonusPower;
+
+            let hitPower = baseP + currentCoinBonus + accumulatedBonusPower;
+            if (hitPower < 0) hitPower = 0;
+			
+			currentTotalPower += hitPower;
+
+            let finalMod = totalMultBase + spec.pctDmg;
+            if (finalMod < 0) finalMod = 0;
+
+            let hitDmg = (hitPower * finalMod * resMult) + spec.flatDmg;
+            hitDmg = Math.max(1, Math.floor(hitDmg));
+            currentTotalDmg += hitDmg;
+
+            // DOM Construction
+            const div = document.createElement('div');
+            div.className = 'sandbox-coin-row';
+            div.innerHTML = `
+                <div style="color:#aaa; font-weight:bold;">C${c+1}</div>
+                <div class="toggle-btn ${isHead ? 'heads' : 'tails'}" onclick="toggleSandboxCoin(${c})">
+                    ${isHead ? 'H' : 'T'}
+                </div>
+                <div>
+                    <div class="sb-stat">Power: <span>${hitPower}</span></div>
+                    <div class="sb-stat">Dmg: <span>${hitDmg}</span></div>
+                </div>
+                <div style="font-size:0.8em; color:#666;">
+                    Base: ${baseP + currentCoinBonus + accumulatedBonusPower}<br>
+                    Mod: ${(finalMod*100).toFixed(0)}%
+                </div>
+            `;
+            container.appendChild(div);
+        }
+
+		document.getElementById('sb-raw-power').textContent = currentTotalPower;
+        document.getElementById('sb-final-dmg').textContent = currentTotalDmg;
+    }
+
+    function toggleSandboxCoin(index) {
+        sandboxState[index] = !sandboxState[index];
+        // Re-run full calculation to get latest modifiers (inefficient but safe) or pass stored?
+        // Better: trigger Main Calc, but we need to preserve state. 
+        // Since CalculateDamage calls updateSandboxUI, we just call calculateDamage().
+        calculateDamage();
+    }
+
+    /* --- 4. MODIFIER LOGIC --- */
+
+    window.addEventListener('load', () => {
+        createDummyRow('atkModList', 'atkModTotal');
+        createDummyRow('defModList', 'defModTotal');
+    });
+
+    function createDummyRow(containerId, totalId) {
+        const container = document.getElementById(containerId);
+        const div = document.createElement('div');
+        div.className = 'mod-item dummy-row'; 
+        div.innerHTML = `
+            <input type="text" placeholder="Name..." oninput="promoteRow(this, '${containerId}', '${totalId}')">
+            <input type="number" placeholder="%" oninput="promoteRow(this, '${containerId}', '${totalId}')">
+            <button class="btn-mini btn-remove" style="visibility: hidden;" onclick="removeModRow(this, '${containerId}', '${totalId}')">×</button>
+        `;
+        container.appendChild(div);
+    }
+
+    function promoteRow(inputEl, containerId, totalId) {
+        const row = inputEl.parentElement;
+        if (row.classList.contains('dummy-row')) {
+            row.classList.remove('dummy-row');
+            row.querySelector('.btn-remove').style.visibility = 'visible';
+            row.querySelectorAll('input').forEach(inp => {
+                inp.addEventListener('input', () => updateTotal(containerId, totalId));
+            });
+            createDummyRow(containerId, totalId);
+        }
+        updateTotal(containerId, totalId);
+    }
+
+    function removeModRow(btn, containerId, totalId) {
+        btn.parentElement.remove();
+        updateTotal(containerId, totalId);
+    }
+
+    function updateTotal(containerId, totalId) {
+        const container = document.getElementById(containerId);
+        const inputs = container.querySelectorAll('input[type="number"]');
+        let sum = 0;
+        inputs.forEach(inp => {
+            const val = parseFloat(inp.value);
+            if (!isNaN(val)) sum += val;
+        });
+        document.getElementById(totalId).textContent = `Total: ${sum}%`;
+    }
+</script>
+
+</body>
+</html>
