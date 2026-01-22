@@ -1,4 +1,5 @@
 import os
+import shutil
 
 def main():
     # Define file paths
@@ -15,6 +16,13 @@ def main():
     style_path = os.path.join(src_dir, 'style.css')
     script_path = os.path.join(src_dir, 'script.js')
     output_path = os.path.join(dist_dir, 'index.html') # GitHub Pages serves index.html
+
+    # Copy static assets like the favicon
+    favicon_src_path = os.path.join(src_dir, 'favicon.png')
+    favicon_dest_path = os.path.join(dist_dir, 'favicon.png')
+    if os.path.exists(favicon_src_path):
+        shutil.copy(favicon_src_path, favicon_dest_path)
+        print(f"Copied favicon to {os.path.relpath(favicon_dest_path, project_root)}")
 
     # Read CSS and JS content
     with open(style_path, 'r', encoding='utf-8') as f:
