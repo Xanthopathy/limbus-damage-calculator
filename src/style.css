@@ -172,6 +172,12 @@ input[type="number"]:focus, select:focus, input[type="text"]:focus {
     padding: 5px;
 }
 
+.mod-item input[type="text"],
+.mod-item input[type="number"] {
+    /* Prevents inputs from overflowing their container in a tight grid layout by overriding the browser's default min-width. */
+    min-width: 0;
+}
+
 .btn-mini {
     background: #444;
     border: none;

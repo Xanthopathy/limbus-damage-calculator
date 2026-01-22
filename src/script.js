@@ -28,7 +28,11 @@ const coinCountInput = document.getElementById("coinCount");
 const coinRowsContainer = document.getElementById("coinRowsContainer");
 
 function updateCoinRows() {
-  const count = parseInt(coinCountInput.value) || 1;
+  let count = parseInt(coinCountInput.value) || 1;
+  if (count > 100) {
+    count = 100;
+    coinCountInput.value = 100;
+  }
   const currentRows = coinRowsContainer.querySelectorAll(".coin-row");
   const currentCount = currentRows.length;
 
@@ -112,10 +116,10 @@ function getInputs() {
   });
 
   return {
-    baseP: parseFloat(document.getElementById("basePower").value) || 0,
-    coinP: parseFloat(document.getElementById("coinPower").value) || 0,
+    baseP: getSum("basePowerList"),
+    coinP: getSum("coinPowerList"),
     coins: parseInt(document.getElementById("coinCount").value) || 1,
-    offLvl: parseFloat(document.getElementById("offenseLevel").value) || 0,
+    offLvl: getSum("offenseLevelList"),
     defLvl: parseFloat(document.getElementById("defenseLevel").value) || 0,
     sinRes: parseFloat(document.getElementById("sinRes").value) || 1.0,
     physRes: parseFloat(document.getElementById("physRes").value) || 1.0,
@@ -402,15 +406,39 @@ function toggleSandboxCoin(index) {
 window.addEventListener("load", () => {
   createDummyRow("atkModList", "atkModTotal");
   createDummyRow("defModList", "defModTotal");
+
+  // Initialize Basics with default values
+  addFixedRow("basePowerList", "basePowerTotal", "Base", 4);
+  createDummyRow("basePowerList", "basePowerTotal");
+
+  addFixedRow("coinPowerList", "coinPowerTotal", "Base", 4);
+  createDummyRow("coinPowerList", "coinPowerTotal");
+
+  addFixedRow("offenseLevelList", "offenseLevelTotal", "Base", 60);
+  createDummyRow("offenseLevelList", "offenseLevelTotal");
 });
+
+function addFixedRow(containerId, totalId, name, val) {
+  const container = document.getElementById(containerId);
+  const div = document.createElement("div");
+  div.className = "mod-item";
+  div.innerHTML = `
+        <input type="text" value="${name}" oninput="promoteRow(this, '${containerId}', '${totalId}')">
+        <input type="number" value="${val}" oninput="promoteRow(this, '${containerId}', '${totalId}')">
+        <button class="btn-mini btn-remove" onclick="removeModRow(this, '${containerId}', '${totalId}')">×</button>
+    `;
+  container.appendChild(div);
+  updateTotal(containerId, totalId);
+}
 
 function createDummyRow(containerId, totalId) {
   const container = document.getElementById(containerId);
+  const placeholder = totalId.includes("Mod") ? "%" : "Val";
   const div = document.createElement("div");
   div.className = "mod-item dummy-row";
   div.innerHTML = `
         <input type="text" placeholder="Name..." oninput="promoteRow(this, '${containerId}', '${totalId}')">
-        <input type="number" placeholder="%" oninput="promoteRow(this, '${containerId}', '${totalId}')">
+        <input type="number" placeholder="${placeholder}" oninput="promoteRow(this, '${containerId}', '${totalId}')">
         <button class="btn-mini btn-remove" style="visibility: hidden;" onclick="removeModRow(this, '${containerId}', '${totalId}')">×</button>
     `;
   container.appendChild(div);
@@ -442,5 +470,6 @@ function updateTotal(containerId, totalId) {
     const val = parseFloat(inp.value);
     if (!isNaN(val)) sum += val;
   });
-  document.getElementById(totalId).textContent = `Total: ${sum}%`;
+  const suffix = totalId.includes("Mod") ? "%" : "";
+  document.getElementById(totalId).textContent = `Total: ${sum}${suffix}`;
 }

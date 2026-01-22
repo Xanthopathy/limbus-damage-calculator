@@ -16,19 +16,43 @@
     <div class="grid-row">
         <div class="form-group">
             <label>Base Power</label>
-            <input type="number" id="basePower" value="4">
+            <div class="modifier-dropdown" id="basePowerDropdown">
+                <div class="modifier-summary" onclick="toggleDropdown('basePowerContent')">
+                    <span id="basePowerTotal">Total: 4</span>
+                    <span style="font-size:0.8em">▼</span>
+                </div>
+                <div class="modifier-content" id="basePowerContent">
+                    <div id="basePowerList"></div>
+                </div>
+            </div>
         </div>
         <div class="form-group">
             <label>Coin Power</label>
-            <input type="number" id="coinPower" value="4">
+            <div class="modifier-dropdown" id="coinPowerDropdown">
+                <div class="modifier-summary" onclick="toggleDropdown('coinPowerContent')">
+                    <span id="coinPowerTotal">Total: 4</span>
+                    <span style="font-size:0.8em">▼</span>
+                </div>
+                <div class="modifier-content" id="coinPowerContent">
+                    <div id="coinPowerList"></div>
+                </div>
+            </div>
         </div>
         <div class="form-group">
             <label>Number of Coins</label>
-            <input type="number" id="coinCount" value="3" min="1" max="9">
+            <input type="number" id="coinCount" value="3" min="1" max="100">
         </div>
         <div class="form-group">
             <label>Offense Level</label>
-            <input type="number" id="offenseLevel" value="60">
+            <div class="modifier-dropdown" id="offenseLevelDropdown">
+                <div class="modifier-summary" onclick="toggleDropdown('offenseLevelContent')">
+                    <span id="offenseLevelTotal">Total: 60</span>
+                    <span style="font-size:0.8em">▼</span>
+                </div>
+                <div class="modifier-content" id="offenseLevelContent">
+                    <div id="offenseLevelList"></div>
+                </div>
+            </div>
         </div>
     </div>
 
